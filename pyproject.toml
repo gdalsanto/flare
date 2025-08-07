@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "flareverb"
+version = "0.0.1"
+authors = [
+  { name="Gloria Dal Santo", email="gloria.dalsanto@aalto.fi" },
+]
+maintainers = [
+  { name="Gloria Dal Santo", email="gloria.dalsanto@aalto.fi" },
+]
+description = "An Open-Source Library for RIR Synthesis and Analysis in PyTorch based on FLAMO"
+readme = "README.md"
+license = {file = "LICENSE"}
+keywords = ["reverb", "audio signal processing", "data augmentation", "data generation"]
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+]
+dependencies = [
+    "flamo==0.1.4",
+    "pydantic",
+    "pyyaml",
+    "pandas"
+]
+
+[project.urls]
+Homepage = "https://github.com/gdalsanto/flare"
+Issues = "https://github.com/gdalsanto/flare/issues"

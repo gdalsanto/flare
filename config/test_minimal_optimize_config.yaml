@@ -1,0 +1,14 @@
+fs: 48000
+nfft: 96000
+num: 2
+output_data_path: "output/test_fdn_rirs.pkl"
+optimize: true
+fdn_config:
+  N: 4
+  delay_range_ms: [20.0, 50.0]
+  attenuation_type: 'homogeneous'
+  attenuation_range: [0.5, 3.5]
+  onset_time: [10]
+  drr: 0.25
+  energy: 1.0
+  optimize: True
