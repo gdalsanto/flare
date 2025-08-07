@@ -1,6 +1,6 @@
 # FLARE
 
-An Open-Source Library for Room Impulse Response (RIR) Synthesis and Analysis in PyTorch based on FLAMO.
+An Open-Source Library for Room Impulse Response Synthesis and Analysis in PyTorch based on FLAMO.
 
 ## Installation
 
