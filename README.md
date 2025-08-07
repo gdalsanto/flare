@@ -1,4 +1,4 @@
-# FlareVerb
+# FLARE
 
 An Open-Source Library for Room Impulse Response (RIR) Synthesis and Analysis in PyTorch based on FLAMO.
 
