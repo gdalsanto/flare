@@ -8,31 +8,6 @@ An Open-Source Library for Room Impulse Response Synthesis and Analysis in PyTor
 pip install flareverb
 ```
 
-## Quick Start
-
-```python
-import torch
-from flareverb import BaseFDN, FDNConfig
-
-# Create a basic FDN configuration
-config = FDNConfig(
-    N=8,  # Number of delay lines
-    fs=48000,  # Sample rate
-    # ... other configuration parameters
-)
-
-# Initialize the FDN
-fdn = BaseFDN(
-    config=config,
-    nfft=2048,
-    alias_decay_db=-60,
-    delay_lengths=[prime_delays],  # List of prime delay lengths
-)
-
-# Process audio
-output = fdn(input_audio, ext_params)
-```
-
 ## Project Structure
 
 ```
