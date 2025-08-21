@@ -1,13 +1,28 @@
 from typing import Union
+import json
+from pathlib import Path
 
 import torch
 import sympy as sp
 import numpy as np
 from numpy.typing import ArrayLike
 
-from flareverb.config.config import FDNConfig, GFDNConfig
+from flareverb.config.config import (
+    FDNConfig, 
+    GFDNConfig, 
+    FDNAttenuation)
 from flareverb.utils import ms_to_samps
 from flareverb.reverb import BaseFDN
+from flareverb.utils import rt_from_sabine
+def load_material_coefficients(filename: str = "pyra_materials.json"):
+    """Load material absorption coefficients from JSON file."""
+    materials_file = Path(__file__).parent / "data" / filename
+
+    try:
+        with open(materials_file, 'r') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, FileNotFoundError) as e:
+        print(f"Warning: Could not load materials file: {e}")
 
 
 def fdn_params(config: FDNConfig, device: str):
@@ -102,7 +117,7 @@ def fdn_params(config: FDNConfig, device: str):
     else:
         delay_lengths = config.delay_lengths
     # random sampling of the gain parameters
-    if config.mixing_matrix_config.is_scattering:
+    if config.mixing_matrix_config.is_scattering or config.mixing_matrix_config.is_velvet_noise:
         U_dims = (config.mixing_matrix_config.n_stages, N, N)
     else:
         U_dims = (N, N)
@@ -185,3 +200,83 @@ def normalize_fdn_energy(config: FDNConfig, fdn: BaseFDN, target_energy: Union[f
     )
     fdn.shell.set_core(core)
     return fdn
+
+# set the limits of the room dimensions
+room_dimentions = {
+    "small": {  "length": [1.5, 7], "width": [1.5, 5],  "height": [2, 3]},
+    "medium": { "length": [5, 10],  "width": [3, 8],    "height": [2, 5]},
+    "large": {  "length": [7, 15],  "width": [5, 12],   "height": [3, 7]}
+}
+
+def sample_reverb_time(config: FDNAttenuation, device: str ):
+    """
+    Generation of the reverberation time curve based on Sabine's formula.
+    This function generates the parameters randomly and uses the frequency dependent attenuation by air.
+
+    Returns
+    -------
+    Reference: Prawda, K., Schlecht, S. J., & Välimäki, V. (2022). Calibrating the Sabine and Eyring formulas. The Journal of the Acoustical Society of America, 152(2), 1158-1169.
+    """
+    size = np.random.choice(list(room_dimentions.keys()))
+    room_l = np.random.uniform(room_dimentions[size]['length'][0], room_dimentions[size]['length'][1])
+    room_w = np.random.uniform(room_dimentions[size]['width'][0], room_dimentions[size]['width'][1])
+    room_h = np.random.uniform(room_dimentions[size]['height'][0], room_dimentions[size]['height'][1])
+    room_dim = [room_l, room_w, room_h]
+
+
+    # Load the materials when the module is imported
+    pyra_materials = load_material_coefficients()
+
+    # sample three materials from the pyra_materials.json
+    materials = np.random.choice(
+        list(pyra_materials['absorption'].keys()), size=3, replace=True
+    )
+    source_freqs = np.array(pyra_materials['center_freqs'])
+    target_freqs = np.array(config.t60_center_freq)
+    if config.attenuation_type == "geq":
+        target_freqs = np.concatenate((np.array([10]), target_freqs))
+    # interpolate the absorption coefficients to the frequency bands given in the config file
+    if not np.array_equal(target_freqs, source_freqs):
+        interpolated_coeffs = []
+        for mat in materials:
+            source_coeffs = np.array(pyra_materials['absorption'][mat]['coeffs'])
+            # Perform linear interpolation
+            interpolated_coeffs.append(torch.tensor(np.interp(target_freqs, source_freqs, source_coeffs), device=device))
+
+        absorption_coeffs = torch.stack(interpolated_coeffs)
+    else:
+        absorption_coeffs = torch.tensor(
+            [pyra_materials['absorption'][mat]['coeffs'] for mat in materials],
+            device=device,
+        )
+    # convert the coefficients to a torch tensor
+    surface = torch.empty((3), dtype=torch.float32)
+    surface[0] = 2 * (room_l * room_h + room_w * room_h)  # walls
+    surface[1] = (room_l * room_w)  # floor
+    surface[2] = (room_l * room_w)   # ceiling
+    # compute the reverberation time for each material
+    return rt_from_sabine(surface, absorption_coeffs, torch.tensor(room_dim, device=device))
+
+def sample_attenuation_params(config: FDNConfig, device: str = "cpu"):
+
+
+    rt = sample_reverb_time(config, device=device)
+
+    # set the attenuation parameters to the reverberation time
+    if config.attenuation_type == "geq":
+        config.attenuation_param = [rt.tolist()]
+    elif config.attenuation_type == "first_order_lp": 
+        # generate random cutoff frequency 
+        cutoff_freqs = np.random.uniform(np.pi / 10, np.pi)
+        # use one random value for rt for the rt at low frequencies
+        rt_low_freq = np.random.uniform(rt[0], rt[-1])
+        # generate the first order lowpass filter coefficients
+        config.attenuation_param = [[rt_low_freq, cutoff_freqs]]
+    elif config.attenuation_type == "homogeneous":
+        return config.attenuation_param
+    else:
+        raise ValueError(f"Unsupported attenuation type: {config.attenuation_type}")
+    
+
+    return config.attenuation_param
+

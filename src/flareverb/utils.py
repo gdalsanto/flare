@@ -429,15 +429,35 @@ def discard_last_n_percent(x: Union[np.ndarray, torch.Tensor], percent: float) -
         return x[:, :-n_samples] if n_samples > 0 else x
 
 
-if __name__ == "__main__":
-    # Example usage
-    x = np.random.randn(1, 48000)  # 1 second of random noise at 48kHz
-    fs = 48000
-    rt60 = torch.tensor([0.5, 1.0])  # Example RT60 values in seconds
+def rt_from_sabine(surface: torch.Tensor, surface_absorption: torch.Tensor, room_dim: torch.Tensor) -> torch.Tensor:
+    """
+    Calculate reverberation time (RT60) using Sabine's formula.
+    
+    This function computes the reverberation time based on the surface area of
+    the room and the absorption coefficients of the materials. It uses Sabine's
+    formula: RT60 = 0.161 * V / (S * A), where V is the room volume, S is the total
+    surface area, and A is the average absorption.
+    
+    Parameters
+    ----------
+    surface : torch.Tensor
+        Surface area of the room or the walls in square meters. Can be a scalar or tensor.
+        If multiple surfaces are provided, the shape should be compatible with the surface_aboprtion tensor.
+    surface_absorption : torch.Tensor
+        Absorption coefficients of the materials in the room. Shape: [n_surfaces, n_frequencies].
+    room_dim : torch.Tensor
+        Dimensions of the room as a tensor with shape (3,) representing length,
+        width, and height in meters.
+        
+    Returns
+    -------
+    torch.Tensor
+        Reverberation time (RT60) in seconds. The return type matches the input type.
 
-    slopes = rt2slope(rt60, fs)
-    print("Energy decay slopes:", slopes)
-
-    filtered_signal, freqs = filterbank(x, n_fractions=3, f_min=125, f_max=8000)
-    print("Filtered signal shape:", filtered_signal.shape)
-    print("Center frequencies:", freqs)
+    """
+    assert len(surface.shape) == (len(surface_absorption.shape) - 1), "Surface and surface absorption must have compatible shapes."
+    # Calculate the average absorptivity in the room
+    mean_absorption = torch.sum(torch.einsum('s, sf -> sf', surface , surface_absorption), dim=0) / surface.sum()
+    volume = torch.prod(room_dim)
+    rt60 = 0.161 * volume / (surface.sum() * mean_absorption)  # Scale by sampling frequency
+    return rt60

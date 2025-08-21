@@ -15,11 +15,11 @@ class FDNAttenuation(BaseModel):
     """
     attenuation_type: str = Field(
         default="homogeneous",
-        description="Type of attenuation filter."
+        description="Type of attenuation filter. Types can be 'homogeneous', 'geq', or 'first_order_lp'."
     )
     attenuation_range: List[float] = Field(
         default_factory=lambda: [0.5, 3.5],
-        description="Attenuation range in seconds (used only when t60 pkl is not given)."
+        description="Attenuation range in seconds (used only when attenuation_param is not given)."
     )
     rt_nyquist: float = Field(
         default=0.2,
@@ -27,7 +27,10 @@ class FDNAttenuation(BaseModel):
     )
     attenuation_param: Optional[List[List[float]]] = Field(
         default=None,
-        description="T60 parameter."
+        description="T60 parameter. The size depends on the attenuation_type: " \
+        "'homogeneous' -> [num, 1]; " \
+        "'geq' -> [num, num_bands]; " \
+        "'first_order_lp' -> [num, 2]."
     )
     t60_octave_interval: int = Field(
         default=1,
@@ -37,6 +40,7 @@ class FDNAttenuation(BaseModel):
         default_factory=lambda: [63, 125, 250, 500, 1000, 2000, 4000, 8000],
         description="Center frequencies for T60."
     )
+    # TODO: Add support for tone corrector in the reverb module
     tc_param: Optional[List[List]] = Field(
         default=None,
         description="Tone corrector gains as 1 octave GEQ."
@@ -50,6 +54,28 @@ class FDNAttenuation(BaseModel):
         description="Center frequencies for tone corrector."
     )
 
+    @model_validator(mode="after")
+    def check_geq_parameters(self) -> "FDNAttenuation":
+        """
+        Validate that for 'geq' attenuation type, t60_center_freq length matches 
+        the second dimension of attenuation_param when provided.
+        """
+        if (self.attenuation_type == "geq" and 
+            self.attenuation_param is not None and 
+            len(self.attenuation_param) > 0):
+            
+            # Get the number of frequency bands from attenuation_param
+            num_bands = len(self.attenuation_param[0])
+            
+            if len(self.t60_center_freq) != num_bands:
+                raise ValueError(
+                    f"For 'geq' attenuation type, length of t60_center_freq "
+                    f"({len(self.t60_center_freq)}) must match the number of frequency bands "
+                    f"in attenuation_param ({num_bands})"
+                )
+        
+        return self
+
 class FDNMixing(BaseModel):
     """
     Mixing matrix configuration for FDN.
@@ -62,6 +88,10 @@ class FDNMixing(BaseModel):
         default=False,
         description="If filter feedback matrix is used."
     )
+    is_velvet_noise: bool = Field(
+        default=False,
+        description="If velvet noise is used."
+    )
     sparsity: int = Field(
         default=1,
         description="Density for scattering mapping."
@@ -70,6 +100,15 @@ class FDNMixing(BaseModel):
         default=3,
         description="Number of stages in the scattering mapping."
     )
+
+    @model_validator(mode="after")
+    def check_mixing_exclusivity(self) -> "FDNMixing":
+        """
+        Validate that is_scattering and is_velvet_noise are not both True.
+        """
+        if self.is_scattering and self.is_velvet_noise:
+            raise ValueError("is_scattering and is_velvet_noise cannot both be True")
+        return self
 
 class FDNConfig(BaseModel):
     """

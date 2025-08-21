@@ -241,7 +241,7 @@ class BaseFDN(nn.Module):
             core.branchA.input_gain.param.cpu().detach().numpy().tolist()
         )
         params["output_gains"] = (
-            core.branchA.output_gain.param.cpu().detach().numpy().tolist()
+            core.branchA.output_gain.param[0].cpu().detach().numpy().tolist()
         )
         params["feedback_matrix"] = (
             core.branchA.feedback_loop.feedback.mixing_matrix.param.cpu()
@@ -389,20 +389,32 @@ class BaseFDN(nn.Module):
 
     def _create_mixing_matrix(self, config: FDNMixing):
         """Create orthogonal mixing matrix."""
-        if config.is_scattering:
+        if config.is_scattering or config.is_velvet_noise:
             m_L = torch.randint(low=1, high=int(torch.floor(min(self.delay_lengths)/10)), size=[self.N])
             m_R = torch.randint(low=1, high=int(torch.floor(min(self.delay_lengths)/10)), size=[self.N])
-            mixing = dsp.ScatteringMatrix(
-                size=(config.n_stages, self.N, self.N),
-                nfft=self.nfft,
-                sparsity=config.sparsity,
-                gain_per_sample=1.0, 
-                m_L=m_L,
-                m_R=m_R,
-                requires_grad=self.requires_grad,
-                alias_decay_db=self.alias_decay_db,
-                device=self.device
-            )
+            if config.is_scattering:
+                mixing = dsp.ScatteringMatrix(
+                    size=(config.n_stages, self.N, self.N),
+                    nfft=self.nfft,
+                    sparsity=config.sparsity,
+                    gain_per_sample=1.0, 
+                    m_L=m_L,
+                    m_R=m_R,
+                    requires_grad=self.requires_grad,
+                    alias_decay_db=self.alias_decay_db,
+                    device=self.device
+                )
+            else:
+                mixing = dsp.VelvetNoiseMatrix(
+                    size=(config.n_stages, self.N, self.N),
+                    nfft=self.nfft,
+                    density=1/config.sparsity,
+                    gain_per_sample=1.0, 
+                    m_L=m_L,
+                    m_R=m_R,
+                    alias_decay_db=self.alias_decay_db,
+                    device=self.device
+                )
         elif config.mixing_type == "householder":
             mixing = dsp.HouseholderMatrix(
                 size=(self.N, self.N),
@@ -488,7 +500,7 @@ class BaseFDN(nn.Module):
             return self._create_homogeneous_attenuation(config)
         elif config.attenuation_type == "geq":
             return self._create_geq_attenuation(config)
-        elif config.attenuation_type == "first_order":
+        elif config.attenuation_type == "first_order_lp":
             return self._create_first_order_attenuation(config)
         else:
             raise ValueError(f"Unsupported attenuation type: {config.attenuation_type}")
@@ -540,7 +552,7 @@ class BaseFDN(nn.Module):
             end_freq=config.t60_center_freq[-1],
             device=None,
         )
-        attenuation.assign_value(config.attenuation_param)
+        attenuation.assign_value(torch.tensor(config.attenuation_param[0], device=self.device))
         return attenuation
 
     def _create_first_order_attenuation(self, config: FDNAttenuation):
@@ -554,7 +566,7 @@ class BaseFDN(nn.Module):
             alias_decay_db=self.alias_decay_db, 
             device=self.device
         )
-        attenuation.assign_value(config.attenuation_param)
+        attenuation.assign_value(torch.tensor(config.attenuation_param[0], device=self.device))
         return attenuation
     
 class GroupedFDN(BaseFDN):

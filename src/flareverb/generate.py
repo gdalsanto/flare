@@ -200,7 +200,7 @@ def create_fdn(fdn_config: Union[FDNConfig, GFDNConfig], delay_lengths: list, in
     curr_fdn.shell.set_core(core)
     return curr_fdn
 
-def normalize_fdn_energy_if_needed(fdn_config: Union[FDNConfig, GFDNConfig], curr_fdn: Union[GroupedFDN, BaseFDN]) -> Union[GroupedFDN, BaseFDN]:
+def normalize_fdn_energy(fdn_config: Union[FDNConfig, GFDNConfig], curr_fdn: Union[GroupedFDN, BaseFDN]) -> Union[GroupedFDN, BaseFDN]:
     """
     Normalize the energy of the FDN if specified in the configuration.
     
@@ -307,6 +307,13 @@ def optimize_fdn(curr_fdn: Union[FDNConfig, GFDNConfig], config: BaseConfig) -> 
     train_loader, valid_loader = load_dataset(
         dataset, batch_size=config.fdn_optim_config.batch_size
     )
+
+    # Replace the attenuation with identity during optimization
+    temp = curr_fdn.shell.get_core() 
+    curr_attenuation = temp.branchA.feedback_loop.feedback.attenuation
+    temp.branchA.attenuation = torch.nn.Identity()
+    curr_fdn.shell.set_core(temp)
+
     trainer = Trainer(
         curr_fdn.shell,
         max_epochs=config.fdn_optim_config.max_epochs,
@@ -319,6 +326,11 @@ def optimize_fdn(curr_fdn: Union[FDNConfig, GFDNConfig], config: BaseConfig) -> 
     )
     trainer.register_criterion(sparsity_loss(), 1, requires_model=True)
     trainer.train(train_loader, valid_loader)
+
+    # restore the attenuation
+    temp = curr_fdn.shell.get_core()
+    temp.branchA.feedback_loop.feedback.attenuation = curr_attenuation
+    curr_fdn.shell.set_core(temp)
 
 def save_results(df: pd.DataFrame, output_path: str) -> None:
     """
@@ -372,10 +384,9 @@ def fdn_dataset(
 ) -> Tuple[pd.DataFrame, Optional[pd.DataFrame]]:
     """
     Generate a dataset of FDN impulse responses and acoustic parameters.
-    This is the main function for generating a comprehensive dataset of FDN
-    impulse responses along with their corresponding acoustic parameters. The
-    function can optionally perform optimization on the FDNs and save the
-    results to disk.
+    This is the main function for generating a dataset of FDN impulse responses
+    along with their corresponding acoustic parameters. The function can
+    optionally perform colorless optimization on the FDNs and save the results to disk.
 
     Parameters
     ----------
@@ -426,24 +437,29 @@ def fdn_dataset(
     if config.optimize:
         Path(config.fdn_optim_config.train_dir).mkdir(parents=True, exist_ok=True)
 
+    att_flag = 0
     for _ in range(config.num):
         # Sample parameters
         delay_lengths, input_gains, output_gains, feedback_matrix = sample_fdn_parameters(
             fdn_config, config.device, config.is_delay_shift
         )
+        # Sample attenuation parameters 
+        if fdn_config.attenuation_config.attenuation_param is None or att_flag == 1:
+            att_flag = 1
+            fdn_config.attenuation_config.attenuation_param = sampling.sample_attenuation_params(fdn_config.attenuation_config, device=config.device)
         # Create FDN
         curr_fdn = create_fdn(
             fdn_config, delay_lengths, input_gains, output_gains, feedback_matrix, config
         )
         # Normalize energy if needed
-        curr_fdn = normalize_fdn_energy_if_needed(fdn_config, curr_fdn)
+        curr_fdn = normalize_fdn_energy(fdn_config, curr_fdn)
         # Analyze
         h, acoustic_params = analyze_fdn(curr_fdn, acoustic_analyzer)
         params = curr_fdn.get_params()
         # Append results
         fdn_data = append_acoustic_params(fdn_data, acoustic_params)
         fdn_data = append_params(fdn_data, params)
-        fdn_data["attenuation"].append(params["attenuation"][0])
+        fdn_data["attenuation"].append(params["attenuation"])
         fdn_data["ir"].append(h.squeeze().cpu().numpy().tolist())
         fdn_data["fs"].append(fdn_config.fs)
         # Optimization (if enabled)

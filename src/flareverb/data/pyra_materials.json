@@ -1,0 +1,92 @@
+
+{
+  "description": "Material absorption coefficients for various surfaces in a reverberation context. Taken from PyRoomAcoustics pyroomacoustics/data/materials.json.",
+  "github" : "https://github.com/LCAV/pyroomacoustics",
+  "center_freqs": [125, 250, 500, 1000, 2000, 4000, 8000],
+  "absorption": {
+      "hard_surface": {
+        "description": "Walls, hard surfaces average (brick walls, plaster, hard floors, etc.)",
+        "coeffs": [0.02, 0.02, 0.03, 0.03, 0.04, 0.05, 0.05]
+      },
+      "brickwork": {
+        "description": "Walls, rendered brickwork",
+        "coeffs": [0.01, 0.02, 0.02, 0.03, 0.03, 0.04, 0.04]
+      },
+      "rough_concrete": {
+        "description": "Rough concrete",
+        "coeffs": [0.02, 0.03, 0.03, 0.03, 0.04, 0.07, 0.07]
+      },
+      "unpainted_concrete": {
+        "description": "Smooth unpainted concrete",
+        "coeffs": [0.01, 0.01, 0.02, 0.02, 0.02, 0.05, 0.05]
+      },
+      "rough_lime_wash": {
+        "description": "Rough lime wash",
+        "coeffs": [0.02, 0.03, 0.04, 0.05, 0.04, 0.03, 0.02]
+      },
+      "smooth_brickwork_flush_pointing": {
+        "description": "Smooth brickwork with flush pointing, painted",
+        "coeffs": [0.01, 0.01, 0.02, 0.02, 0.02, 0.02, 0.02]
+      },
+      "smooth_brickwork_10mm_pointing": {
+        "description": "Smooth brickwork, 10 mm deep pointing, pit sand mortar",
+        "coeffs": [0.08, 0.09, 0.12, 0.16, 0.22, 0.24, 0.24]
+      },
+      "brick_wall_rough": {
+        "description": "Brick wall, stuccoed with a rough finish",
+        "coeffs": [0.03, 0.03, 0.03, 0.04, 0.05, 0.07, 0.07]
+      },
+      "ceramic_tiles": {
+        "description": "Ceramic tiles with a smooth surface",
+        "coeffs": [0.01, 0.01, 0.01, 0.02, 0.02, 0.02, 0.02]
+      },
+      "limestone_wall": {
+        "description": "Limestone walls",
+        "coeffs": [0.02, 0.02, 0.03, 0.04, 0.05, 0.05, 0.05]
+      },
+      "reverb_chamber": {
+        "description": "Reverberation chamber walls",
+        "coeffs": [0.01, 0.01, 0.01, 0.02, 0.02, 0.04, 0.04]
+      },
+      "concrete_floor": {
+        "description": "Concrete floor",
+        "coeffs": [0.01, 0.03, 0.05, 0.02, 0.02, 0.02, 0.02]
+      },
+      "marble_floor": {
+        "description": "Marble floor",
+        "coeffs": [0.01, 0.01, 0.01, 0.02, 0.02, 0.02, 0.02]
+      },
+      "plasterboard": {
+        "description": "2 * 13 mm plasterboard on steel frame, 50 mm mineral wool in cavity, surface painted",
+        "coeffs": [0.15, 0.10, 0.06, 0.04, 0.04, 0.05, 0.05]
+      },
+      "wooden_lining": {
+        "description": "Wooden lining, 12 mm fixed on frame",
+        "coeffs": [0.27, 0.23, 0.22, 0.15, 0.10, 0.07, 0.06]
+      },
+      "wood_1.6cm": {
+        "description": "Wood, 1.6 cm thick, on 4 cm wooden planks",
+        "coeffs": [0.18, 0.12, 0.10, 0.09, 0.08, 0.07, 0.07]
+      },
+      "plywood_thin": {
+        "description": "Thin plywood panelling",
+        "coeffs": [0.42, 0.21, 0.10, 0.08, 0.06, 0.06]
+      },
+      "wood_16mm": {
+        "description": "16 mm wood on 40 mm studs",
+        "coeffs": [0.18, 0.12, 0.10, 0.09, 0.08, 0.07, 0.07]
+      },
+      "audience_floor": {
+        "description": "Audience floor, 2 layers, 33 mm on sleepers over concrete",
+        "coeffs": [0.09, 0.06, 0.05, 0.05, 0.05, 0.04]
+      },
+      "stage_floor": {
+        "description": "Wood, stage floor, 2 layers, 27 mm over airspace",
+        "coeffs": [0.10, 0.07, 0.06, 0.06, 0.06, 0.06]
+      },
+      "wooden_door": {
+        "description": "Solid wooden door",
+        "coeffs": [0.14, 0.10, 0.06, 0.08, 0.10, 0.10, 0.10]
+      }
+    }
+}
