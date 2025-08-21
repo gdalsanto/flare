@@ -21,7 +21,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
 ]
 dependencies = [
-    "flamo==0.1.4",
+    "flamo==0.1.6",
     "pydantic",
     "pyyaml",
     "pandas"
