@@ -18,14 +18,16 @@ src/flareverb/
 ├── sampling.py          # Delays and gains sampling methods
 ├── analysis.py          # Acoustic analysis functions
 ├── utils.py             # Utility functions
-└── config/              # Configuration modules
+├── config/              # Configuration modules
+└── data/                # Data folder (contains absorption coefficients)
+
 ```
 
 ## Requirements
 
 - Python >= 3.10
 - PyTorch
-- FLAMO == 0.1.4
+- FLAMO == 0.1.5
 - pydantic
 - pyyaml
 - pandas
