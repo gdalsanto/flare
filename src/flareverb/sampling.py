@@ -139,12 +139,13 @@ def fdn_params(config: FDNConfig, device: str):
 def normalize_fdn_energy(config: FDNConfig, fdn: BaseFDN, target_energy: Union[float, ArrayLike, torch.Tensor]):
     """
     Normalize the energy of a Feedback Delay Network to match a target energy level.
-    
-    This function adjusts the input and output gains of an FDN to achieve a specific
-    target energy level in the frequency response. The normalization is performed
+
+    This function adjusts the input and output gains of an FDN, and the early reflections
+    to achieve a specific target energy level in the frequency response. The normalization is performed
     by scaling the gains proportionally to maintain the FDN's characteristics while
-    achieving the desired energy level.
-    
+    achieving the desired energy level. The combination of the fdn and the direct path
+    is assumed to be uncorrelated.
+
     Parameters
     ----------
     config : FDNConfig
@@ -181,8 +182,20 @@ def normalize_fdn_energy(config: FDNConfig, fdn: BaseFDN, target_energy: Union[f
     """
     if not isinstance(target_energy, torch.Tensor):
         target_energy = torch.tensor(target_energy, device=fdn.device)
+    core = fdn.shell.get_core()
     H = fdn.shell.get_freq_response()
-    energy = torch.sum(torch.pow(torch.abs(H), 2)) / torch.tensor(H.size(1), device=fdn.device)
+    energy = torch.sum(torch.pow(torch.abs(H), 2)) / torch.tensor(H.size(1), device=fdn.device) 
+    energy_fdn = target_energy / (1 + config.drr)
+    if config.drr > 0:
+        curr_energy_direct = torch.sum(torch.pow(core.branchB.early_reflections.map(core.branchB.early_reflections.param), 2)) 
+        energy_direct = target_energy * (config.drr / (1 + config.drr))
+        er = core.branchB.early_reflections.param
+        # change the energy of the direct path is it's nonzero
+        core.branchB.early_reflections.assign_value(
+            er / torch.pow((curr_energy_direct), 1 / 2) * torch.pow(energy_direct, 1 / 2)
+        )
+    else: 
+        energy_direct = 0.0
     # energy normalization
     core = fdn.shell.get_core()
     # get input and output gains
@@ -190,13 +203,10 @@ def normalize_fdn_energy(config: FDNConfig, fdn: BaseFDN, target_energy: Union[f
     c = core.branchA.output_gain.param
     # assign new gains to the FDN
     core.branchA.input_gain.assign_value(
-        b / torch.pow(energy, 1 / 4) * torch.pow(target_energy, 1 / 4)
+        b / torch.pow((energy - curr_energy_direct), 1 / 4) * torch.pow(energy_fdn, 1 / 4)
     )
     core.branchA.output_gain.assign_value(
-        c / torch.pow(energy, 1 / 4) * torch.pow(target_energy, 1 / 4)
-    )
-    core.branchB.direct.assign_value(
-        config.drr * torch.pow(target_energy, 1 / 2).unsqueeze(0).unsqueeze(1)
+        c / torch.pow((energy - curr_energy_direct), 1 / 4) * torch.pow(energy_fdn, 1 / 4)
     )
     fdn.shell.set_core(core)
     return fdn

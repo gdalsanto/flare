@@ -150,9 +150,9 @@ class FDNConfig(BaseModel):
         default_factory=lambda: [10],
         description="Onset time in ms."
     )
-    onset_type: Optional[str] = Field(
+    early_reflections_type: Optional[str] = Field(
         default=None,
-        description="Type of early reflections: 'random', 'FIR', or None."
+        description="Type of early reflections: 'gain', 'FIR', or None."
     )
     drr: float = Field(
         default=0.25,
@@ -193,6 +193,16 @@ class FDNConfig(BaseModel):
             warnings.warn(
                 f"Max onset_time ({self.onset_time} ms) is larger than first element of delay_range_ms ({self.delay_range_ms[0]} ms)"
             )
+        return self
+
+    @model_validator(mode="after")
+    def check_early_reflections(self) -> "FDNConfig":
+        """
+        Set drr to 0 when early_reflections_type is None.
+        """
+        if self.early_reflections_type is None:
+            self.drr = 0.0
+            print("Setting drr to 0.0 since early_reflections_type is None")
         return self
 
 class GFDNConfig(FDNConfig):

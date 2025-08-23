@@ -43,7 +43,7 @@ def append_params(fdn_data: Dict[str, list], params: Dict[str, Any]) -> Dict[str
         parameter type (e.g., 'delays', 'input_gains', etc.).
     params : Dict[str, Any]
         Dictionary containing the current FDN parameters to append.
-        Expected keys: 'delays', 'onset_time', 'onset_gain', 'input_gains',
+        Expected keys: 'delays', 'onset_time', 'early_reflections', 'input_gains',
         'output_gains', 'feedback_matrix'.
         
     Returns
@@ -54,7 +54,7 @@ def append_params(fdn_data: Dict[str, list], params: Dict[str, Any]) -> Dict[str
     """
     fdn_data["delays"].append(params["delays"])
     fdn_data["onset_time"].append(params["onset_time"])
-    fdn_data["onset_gain"].append(params["onset_gain"])
+    fdn_data["early_reflections"].append(params["early_reflections"])
     fdn_data["input_gains"].append(params["input_gains"])
     fdn_data["output_gains"].append(params["output_gains"])
     fdn_data["feedback_matrix"].append(params["feedback_matrix"])
@@ -424,7 +424,7 @@ def fdn_dataset(
         logger = logging.getLogger(__name__)
 
     df_keys = [
-        "delays", "onset_time", "onset_gain", "input_gains", "output_gains", "feedback_matrix",
+        "delays", "onset_time", "early_reflections", "input_gains", "output_gains", "feedback_matrix",
         "attenuation", "ir", "fs", "edc", "edr", "c50", "c80", "d50", "rt60"
     ]
     fdn_config = config.fdn_config
