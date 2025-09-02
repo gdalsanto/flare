@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "flareverb"
-version = "0.0.1"
+version = "0.0.3"
 authors = [
   { name="Gloria Dal Santo", email="gloria.dalsanto@aalto.fi" },
 ]
@@ -21,7 +21,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
 ]
 dependencies = [
-    "flamo==0.1.6",
+    "flamo==0.1.13",
     "pydantic",
     "pyyaml",
     "pandas"
