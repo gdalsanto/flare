@@ -212,3 +212,4 @@ __marimo__/
 .vscode/
 output/
 /archive
+.DS_Store
