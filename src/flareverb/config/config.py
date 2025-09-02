@@ -174,9 +174,9 @@ class FDNConfig(BaseModel):
         default_factory=FDNMixing,
         description="Mixing matrix configuration."
     )
-    n_groups: int = Field(
-        default=1,
-        description="Number of groups (for GFDN)."
+    alias_decay_db: float = Field(
+        default=0.0,
+        description="Alias decay in dB."
     )
 
     @model_validator(mode="after")
@@ -215,7 +215,7 @@ class GFDNConfig(FDNConfig):
     )
     coupling_angles: List[float] = Field(
         default_factory=lambda: [0.0],
-        description="Coupling angles (should be N(N-1)/2)."
+        description="Coupling angles in radians (should be N(N-1)/2)."
     )
     mixing_angles: List[float] = Field(
         default_factory=lambda: [0.0, 0.0],
@@ -291,7 +291,7 @@ class FDNOptimConfig(BaseModel):
         description="Learning rate."
     )
     batch_size: int = Field(
-        default=32,
+        default=1,
         description="Batch size."
     )
     device: str = Field(
@@ -299,7 +299,7 @@ class FDNOptimConfig(BaseModel):
         description="Device to use for optimization."
     )
     dataset_length: int = Field(
-        default=1000,
+        default=100,
         description="Dataset length."
     )
     train_dir: str = Field(

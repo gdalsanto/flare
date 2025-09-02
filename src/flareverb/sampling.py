@@ -25,7 +25,7 @@ def load_material_coefficients(filename: str = "pyra_materials.json"):
         print(f"Warning: Could not load materials file: {e}")
 
 
-def fdn_params(config: FDNConfig, device: str):
+def fdn_params(config: Union[FDNConfig, GFDNConfig], device: str):
     """
     Generate parameters for a Feedback Delay Network (FDN).
     
@@ -76,13 +76,15 @@ def fdn_params(config: FDNConfig, device: str):
     >>> print(f"Output gains shape: {c.shape}")
     >>> print(f"Feedback matrix shape: {U.shape}")
     """
+    if isinstance(config, GFDNConfig):
+        N = config.N * config.n_groups
+    else:
+        N = config.N
 
-    N = config.N * config.n_groups
-
-    
+    n_groups = N // config.N
     delay_lengths = []
     if config.delay_lengths is None:
-        for i_group in range(config.n_groups):
+        for i_group in range(n_groups):
             delay_range_samps = ms_to_samps(np.asarray(config.delay_range_ms), config.fs)
             # generate prime numbers in specified range - add some randomness
             prime_nums = np.array(
@@ -93,23 +95,23 @@ def fdn_params(config: FDNConfig, device: str):
             if config.delay_log_spacing: 
                 # find N prime numbers in the range which are logarithmically spaced
                 log_samps = np.logspace(
-                    np.log10(delay_range_samps[0]), np.log10(delay_range_samps[1] - 1), np.round(N/config.n_groups).astype(int), dtype=int
+                    np.log10(delay_range_samps[0]), np.log10(delay_range_samps[1] - 1), np.round(N/n_groups).astype(int), dtype=int
                 )
                 # find the prime numbers which are closest to the logarithmically spaced samples
                 curr_delay_lengths = prime_nums[np.searchsorted(prime_nums, log_samps)].tolist()
                 # check if there are repeated prime numbers
-                if len(set(curr_delay_lengths)) < N/config.n_groups:
+                if len(set(curr_delay_lengths)) < N/n_groups:
                     rand_primes = prime_nums[np.random.permutation(len(prime_nums))]
                     # delay line lengths
                     curr_delay_lengths = np.array(
-                        np.r_[rand_primes[:N/config.n_groups - 1], sp.nextprime(delay_range_samps[1])],
+                        np.r_[rand_primes[:N/n_groups - 1], sp.nextprime(delay_range_samps[1])],
                         dtype=np.int32,
                     ).tolist() 
             else:
                 rand_primes = prime_nums[np.random.permutation(len(prime_nums))]
                 # delay line lengths
                 curr_delay_lengths = np.array(
-                    np.r_[rand_primes[:int(N/config.n_groups - 1)], sp.nextprime(delay_range_samps[1])],
+                    np.r_[rand_primes[:int(N/n_groups - 1)], sp.nextprime(delay_range_samps[1])],
                     dtype=np.int32,
                 ).tolist()
 
@@ -186,8 +188,8 @@ def normalize_fdn_energy(config: FDNConfig, fdn: BaseFDN, target_energy: Union[f
     H = fdn.shell.get_freq_response()
     energy = torch.sum(torch.pow(torch.abs(H), 2)) / torch.tensor(H.size(1), device=fdn.device) 
     energy_fdn = target_energy / (1 + config.drr)
+    curr_energy_direct = torch.sum(torch.pow(core.branchB.early_reflections.map(core.branchB.early_reflections.param), 2)) 
     if config.drr > 0:
-        curr_energy_direct = torch.sum(torch.pow(core.branchB.early_reflections.map(core.branchB.early_reflections.param), 2)) 
         energy_direct = target_energy * (config.drr / (1 + config.drr))
         er = core.branchB.early_reflections.param
         # change the energy of the direct path is it's nonzero
@@ -267,26 +269,42 @@ def sample_reverb_time(config: FDNAttenuation, device: str ):
     # compute the reverberation time for each material
     return rt_from_sabine(surface, absorption_coeffs, torch.tensor(room_dim, device=device))
 
-def sample_attenuation_params(config: FDNConfig, device: str = "cpu"):
+def sample_attenuation_params(config: Union[FDNConfig, GFDNConfig], device: str = "cpu"):
 
-
-    rt = sample_reverb_time(config, device=device)
-
-    # set the attenuation parameters to the reverberation time
-    if config.attenuation_type == "geq":
-        config.attenuation_param = [rt.tolist()]
-    elif config.attenuation_type == "first_order_lp": 
-        # generate random cutoff frequency 
-        cutoff_freqs = np.random.uniform(np.pi / 10, np.pi)
-        # use one random value for rt for the rt at low frequencies
-        rt_low_freq = np.random.uniform(rt[0], rt[-1])
-        # generate the first order lowpass filter coefficients
-        config.attenuation_param = [[rt_low_freq, cutoff_freqs]]
-    elif config.attenuation_type == "homogeneous":
-        return config.attenuation_param
+    if isinstance(config, GFDNConfig):
+        att_params = []
+        for i_group in range(config.n_groups):
+            rt = sample_reverb_time(config.attenuation_config, device=device)
+            if config.attenuation_config.attenuation_type == "geq":
+                att_params.append(rt.tolist())
+            elif config.attenuation_config.attenuation_type == "first_order_lp": 
+                # generate random cutoff frequency 
+                cutoff_freqs = np.random.uniform(np.pi / 10, np.pi)
+                # use one random value for rt for the rt at low frequencies
+                rt_low_freq = np.random.uniform(rt[0], rt[-1])
+                # generate the first order lowpass filter coefficients
+                att_params.append([rt_low_freq, cutoff_freqs])
+            elif config.attenuation_config.attenuation_type == "homogeneous":
+                att_params.append(config.attenuation_config.attenuation_param)
+            else:
+                raise ValueError(f"Unsupported attenuation type: {config.attenuation_config.attenuation_type}")
+        config.attenuation_config.attenuation_param = att_params
     else:
-        raise ValueError(f"Unsupported attenuation type: {config.attenuation_type}")
-    
+        rt = sample_reverb_time(config.attenuation_config, device=device)
+        # set the attenuation parameters to the reverberation time
+        if config.attenuation_config.attenuation_type == "geq":
+            config.attenuation_config.attenuation_param = [rt.tolist()]
+        elif config.attenuation_config.attenuation_type == "first_order_lp": 
+            # generate random cutoff frequency 
+            cutoff_freqs = np.random.uniform(np.pi / 10, np.pi)
+            # use one random value for rt for the rt at low frequencies
+            rt_low_freq = np.random.uniform(rt[0], rt[-1])
+            # generate the first order lowpass filter coefficients
+            config.attenuation_config.attenuation_param = [[rt_low_freq, cutoff_freqs]]
+        elif config.attenuation_config.attenuation_type == "homogeneous":
+            return config.attenuation_config.attenuation_param
+        else:
+            raise ValueError(f"Unsupported attenuation type: {config.attenuation_config.attenuation_type}")
 
-    return config.attenuation_param
+    return config.attenuation_config.attenuation_param
 

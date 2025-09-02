@@ -70,7 +70,7 @@
       },
       "plywood_thin": {
         "description": "Thin plywood panelling",
-        "coeffs": [0.42, 0.21, 0.10, 0.08, 0.06, 0.06]
+        "coeffs": [0.42, 0.21, 0.10, 0.08, 0.06, 0.06, 0.06]
       },
       "wood_16mm": {
         "description": "16 mm wood on 40 mm studs",
@@ -78,11 +78,11 @@
       },
       "audience_floor": {
         "description": "Audience floor, 2 layers, 33 mm on sleepers over concrete",
-        "coeffs": [0.09, 0.06, 0.05, 0.05, 0.05, 0.04]
+        "coeffs": [0.09, 0.06, 0.05, 0.05, 0.05, 0.04, 0.04]
       },
       "stage_floor": {
         "description": "Wood, stage floor, 2 layers, 27 mm over airspace",
-        "coeffs": [0.10, 0.07, 0.06, 0.06, 0.06, 0.06]
+        "coeffs": [0.10, 0.07, 0.06, 0.06, 0.06, 0.06, 0.06]
       },
       "wooden_door": {
         "description": "Solid wooden door",

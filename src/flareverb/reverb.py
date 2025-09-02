@@ -4,7 +4,11 @@ from typing import List, Literal, Optional, Dict, Any, Union
 import torch
 from torch import nn
 from flamo import dsp, system
-from flamo.auxiliary.reverb import parallelFDNAccurateGEQ, parallelFirstOrderShelving
+from flamo.auxiliary.reverb import (
+    parallelFDNAccurateGEQ, 
+    parallelFirstOrderShelving, 
+    parallelGFDNAccurateGEQ
+)
 from flamo.functional import signal_gallery
 
 from flareverb.config.config import (
@@ -93,6 +97,7 @@ class MapGamma(torch.nn.Module):
             ) ** self.delays
         else:
             return x[0] ** self.delays
+
 
 
 class BaseFDN(nn.Module):
@@ -317,14 +322,12 @@ class BaseFDN(nn.Module):
 
     def _create_output_layer(self, output_type: str):
         """Create the appropriate output layer based on type."""
-        if output_type == "freq":
-            return dsp.iFFT(self.nfft)
+        if output_type == "time":
+            return dsp.iFFTAntiAlias(self.nfft, self.alias_decay_db)
         elif output_type == "freq_complex":
             return dsp.Transform(transform=lambda x: x)
         elif output_type == "freq_mag":
             return dsp.Transform(transform=lambda x: torch.abs(x))
-        elif output_type == "time":
-            return dsp.Transform(transform=lambda x: x)  # Identity for time domain
         else:
             raise ValueError(f"Unsupported output layer type: {output_type}")
 
@@ -510,7 +513,7 @@ class BaseFDN(nn.Module):
                 n=self.in_ch,
                 signal_type="velvet",
                 fs=self.fs,
-                rate=0.01 * self.fs,
+                rate=max(int(torch.rand(1,) / 100 * self.fs), self.fs / early_reflections.size[0] + 1),
             ).squeeze(0)
             early_reflections.assign_value(velvet_noise)
         else:
@@ -655,13 +658,13 @@ class GroupedFDN(BaseFDN):
         self.input_mask = torch.tensor(config.input_gains_mask, device=device)
         self.output_mask = torch.tensor(config.output_gains_mask, device=device)
         super().__init__(
-            config,
-            nfft,
-            alias_decay_db,
-            delay_lengths,
-            device,
-            requires_grad,
-            output_layer,
+            config=config,
+            nfft=nfft,
+            alias_decay_db=alias_decay_db,
+            delay_lengths=delay_lengths,
+            device=device,
+            requires_grad=requires_grad,
+            output_layer=output_layer,
         )
 
     def _validate_delays(self, config: BaseConfig, delay_lengths: List[int]) -> None:
@@ -721,11 +724,8 @@ class GroupedFDN(BaseFDN):
                     R[i, j] = -torch.tensor(coupling_factors[idx], device=self.device)
                     R[j, i] = -R[i, j]
                 idx += 1
-        row_sums = torch.sum(R**2, dim=1)
-        product_of_sums = torch.prod(row_sums)
-        scale = torch.sqrt(product_of_sums)
-
-        R = R / scale
+        row_sums = torch.sum(R**2, dim=1, keepdim=True)
+        R = torch.div(R , row_sums)
         # create diagonal submatrices
         for i in range(self.n_groups):
             submatrix = create_submatrix([self.mixing_angles[i]])
@@ -735,7 +735,7 @@ class GroupedFDN(BaseFDN):
         # fill the off-diagonal blocks
         for i in range(self.n_groups):
             submatrix_i = create_submatrix([self.mixing_angles[i] / 2])
-            for j in range(self.n_groups):
+            for j in range(self.n_groups): 
                 if i != j:
                     submatrix_j = create_submatrix([self.mixing_angles[j] / 2])
                     M[i * self.N : (i + 1) * self.N, j * self.N : (j + 1) * self.N] = R[
@@ -762,7 +762,7 @@ class GroupedFDN(BaseFDN):
         input_gain = dsp.Gain(
             size=(self.N * self.n_groups, self.in_ch),
             nfft=self.nfft,
-            map=lambda x: torch.clip(x * self.input_mask, min=-1.0, max=1.0),
+            map=lambda x: x * self.input_mask,
             requires_grad=self.requires_grad,
             alias_decay_db=self.alias_decay_db,
             device=self.device,
@@ -771,7 +771,7 @@ class GroupedFDN(BaseFDN):
         output_gain = dsp.Gain(
             size=(self.out_ch, self.N * self.n_groups),
             nfft=self.nfft,
-            map=lambda x: torch.clip(x * self.output_mask, min=-1.0, max=1.0),
+            map=lambda x: x * self.output_mask,
             requires_grad=self.requires_grad,
             alias_decay_db=self.alias_decay_db,
             device=self.device,
@@ -840,8 +840,9 @@ class GroupedFDN(BaseFDN):
     def _create_geq_attenuation(self, config: FDNAttenuation):
         """Create GEQ-based attenuation."""
 
-        attenuation = parallelFDNAccurateGEQ(
+        attenuation = parallelGFDNAccurateGEQ(
             octave_interval=config.t60_octave_interval,
+            n_groups=self.n_groups,
             nfft=self.nfft,
             fs=self.fs,
             delays=self.delay_lengths,
@@ -850,7 +851,9 @@ class GroupedFDN(BaseFDN):
             end_freq=config.t60_center_freq[-1],
             device=None,
         )
-        attenuation.assign_value(config.attenuation_param)
+        params = torch.tensor(config.attenuation_param, device=self.device).T.flatten()
+        attenuation.assign_value(params)
+
         return attenuation
 
     def _create_first_order_attenuation(self, config: FDNAttenuation):

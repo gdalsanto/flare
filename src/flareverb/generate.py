@@ -91,7 +91,7 @@ def append_acoustic_params(fdn_data: Dict[str, list], acoustic_params: Dict[str,
     fdn_data["rt60"].append(acoustic_params["rt60"])
     return fdn_data
 
-def sample_fdn_parameters(fdn_config: Union[FDNConfig, ], device: str, is_delay_shift: bool = False) -> Tuple[list, Tensor, Tensor, Tensor]:
+def sample_fdn_parameters(fdn_config: Union[FDNConfig, GFDNConfig], device: str, is_delay_shift: bool = False) -> Tuple[list, Tensor, Tensor, Tensor]:
     """
     Sample FDN parameters with optional random delay shift.
     
@@ -170,11 +170,11 @@ def create_fdn(fdn_config: Union[FDNConfig, GFDNConfig], delay_lengths: list, in
     - The output layer is set to 'freq_mag' if optimization is enabled, otherwise 'time'
     - All gains and feedback matrix are assigned to the FDN's core
     """
-    if fdn_config.n_groups > 1:
+    if isinstance(fdn_config, GFDNConfig):
         curr_fdn = GroupedFDN(
             fdn_config,
             nfft=config.nfft,
-            alias_decay_db=0.0,
+            alias_decay_db=fdn_config.alias_decay_db,
             delay_lengths=delay_lengths,
             device=config.device,
             requires_grad=config.optimize,
@@ -187,7 +187,7 @@ def create_fdn(fdn_config: Union[FDNConfig, GFDNConfig], delay_lengths: list, in
         curr_fdn = BaseFDN(
             fdn_config,
             nfft=config.nfft,
-            alias_decay_db=0.0,
+            alias_decay_db=fdn_config.alias_decay_db,
             delay_lengths=delay_lengths,
             device=config.device,
             requires_grad=config.optimize,
@@ -311,7 +311,10 @@ def optimize_fdn(curr_fdn: Union[FDNConfig, GFDNConfig], config: BaseConfig) -> 
     # Replace the attenuation with identity during optimization
     temp = curr_fdn.shell.get_core() 
     curr_attenuation = temp.branchA.feedback_loop.feedback.attenuation
-    temp.branchA.attenuation = torch.nn.Identity()
+    temp.branchA.feedback_loop.feedback.attenuation = torch.nn.Identity()
+    if hasattr(temp, 'branchB'):
+        curr_er = temp.branchB.early_reflections
+        temp.branchB.early_reflections = torch.nn.Identity()
     curr_fdn.shell.set_core(temp)
 
     trainer = Trainer(
@@ -330,6 +333,8 @@ def optimize_fdn(curr_fdn: Union[FDNConfig, GFDNConfig], config: BaseConfig) -> 
     # restore the attenuation
     temp = curr_fdn.shell.get_core()
     temp.branchA.feedback_loop.feedback.attenuation = curr_attenuation
+    if hasattr(temp, 'branchB'):
+        temp.branchB.early_reflections = curr_er
     curr_fdn.shell.set_core(temp)
 
 def save_results(df: pd.DataFrame, output_path: str) -> None:
@@ -446,7 +451,7 @@ def fdn_dataset(
         # Sample attenuation parameters 
         if fdn_config.attenuation_config.attenuation_param is None or att_flag == 1:
             att_flag = 1
-            fdn_config.attenuation_config.attenuation_param = sampling.sample_attenuation_params(fdn_config.attenuation_config, device=config.device)
+            fdn_config.attenuation_config.attenuation_param = sampling.sample_attenuation_params(fdn_config, device=config.device)
         # Create FDN
         curr_fdn = create_fdn(
             fdn_config, delay_lengths, input_gains, output_gains, feedback_matrix, config

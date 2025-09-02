@@ -461,3 +461,45 @@ def rt_from_sabine(surface: torch.Tensor, surface_absorption: torch.Tensor, room
     volume = torch.prod(room_dim)
     rt60 = 0.161 * volume / (surface.sum() * mean_absorption)  # Scale by sampling frequency
     return rt60
+
+
+def find_coprime_numbers(min_value, max_value, num_numbers, target_sum):
+    def gcd(a, b):
+        while b != 0:
+            a, b = b, a % b
+        return a
+
+    def is_coprime(a, b):
+        return gcd(a, b) == 1
+
+    def get_logarithmically_distributed_values(min_value, max_value, num_numbers):
+        # Generate logarithmically distributed values between min_value and max_value
+        log_min = np.log(min_value)
+        log_max = np.log(max_value)
+        log_values = np.linspace(log_min, log_max, num_numbers)
+        values = np.exp(log_values).astype(int)
+        return np.unique(values)  # Remove duplicates and return
+
+    def get_closest_numbers(values, reference_values):
+        closest_numbers = []
+        for i in values:
+            closest_numbers.append(min(reference_values, key=lambda x: abs(x - i)))
+        if len(np.unique(closest_numbers)) != len(closest_numbers):
+            print("Warning: sampling duplicate values")
+            
+        return closest_numbers
+
+    # Start with logarithmically distributed values
+    prime_numbers = list(sp.primerange(min_value, max_value))
+    log_values = get_logarithmically_distributed_values(min_value, max_value, num_numbers)
+    coprime_numbers = get_closest_numbers(log_values, prime_numbers)
+
+    current_sum = sum(coprime_numbers)
+    while current_sum < 0.9 * target_sum or current_sum > target_sum * 1.1:  # allow 2% error
+        if current_sum < target_sum:
+            coprime_numbers = [sp.nextprime(num)  for num in coprime_numbers]
+        else:
+            coprime_numbers = [sp.prevprime(num)  for num in coprime_numbers]
+        current_sum = sum(coprime_numbers)
+        
+    return coprime_numbers    
