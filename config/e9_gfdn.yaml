@@ -11,16 +11,13 @@ fdn_config:
   onset_time: [10]
   drr: 0.25
   energy: 1.0
-  optimize: True
+  optimize: False
   gain_init: "uniform"
-  coupling_angles: [0.0, 0.0, 0.0]
+  coupling_angles: [0.1, 0.20, 0.34]
   mixing_angles: [0.78, 0.78, 0.78]
-  mixing_matrix_config:
-    sparsity: 1
-    is_scattering: True
   attenuation_config:
-    attenuation_type: "homogeneous"
-    attenuation_param: [[3.0], [0.8], [2.0]]
+    attenuation_type: "geq"
+    # attenuation_param: [[3.0], [0.8], [2.0]]
 fdn_optim_config:
   train_dir: "./output/aes25_experiments/GFDN/training"
   max_epochs: 2
