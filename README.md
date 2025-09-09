@@ -1,4 +1,5 @@
 # FLARE
+[LBDP](https://github.com/gdalsanto/flare/blob/main/AES_AIMLA_abstract.pdf) | [poster](https://github.com/gdalsanto/flare/blob/main/AES_AIMLA_poster.pdf)  
 
 An Open-Source Library for Room Impulse Response Synthesis and Analysis in PyTorch based on [FLAMO](https://github.com/gdalsanto/flamo).  
 
