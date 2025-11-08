@@ -1,8 +1,9 @@
 fs: 48000
 nfft: 96000
-num: 1
+num: 20
 output_data_path: "./output/aes25_experiments/GFDN/gfdn_rirs.pkl"
 optimize: true
+dtype: "float64"
 fdn_config:
   fdn_type: "gfdn"
   n_groups: 3

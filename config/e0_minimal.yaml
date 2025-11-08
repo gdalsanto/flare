@@ -3,6 +3,7 @@ nfft: 96000
 num: 20
 output_data_path: "output/e0_minimal.pkl"
 optimize: true
+dtype: "float64"
 fdn_config:
   N: 8
   delay_range_ms: [10.0, 30.0]
