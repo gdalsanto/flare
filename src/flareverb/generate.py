@@ -269,7 +269,7 @@ def analyze_fdn(curr_fdn: Union[FDNConfig, GFDNConfig], acoustic_analyzer: Acous
     acoustic_params = acoustic_analyzer.analyze_rir(h)
     return h, acoustic_params
 
-def optimize_fdn(curr_fdn: Union[FDNConfig, GFDNConfig], config: BaseConfig) -> None:
+def optimize_fdn(curr_fdn: Union[BaseFDN, GroupedFDN], config: BaseConfig) -> None:
     """
     Run optimization on the FDN using the provided configuration.
     
@@ -279,7 +279,7 @@ def optimize_fdn(curr_fdn: Union[FDNConfig, GFDNConfig], config: BaseConfig) -> 
     
     Parameters
     ----------
-    curr_fdn : Union[FDNConfig, GFDNConfig]
+    curr_fdn : Union[BaseFDN, GroupedFDN]
         The FDN object to optimize. Must have a shell attribute that can be
         used as a trainable model.
     config : Any
