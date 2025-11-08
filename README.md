@@ -28,7 +28,19 @@ src/flareverb/
 
 ## Configuration
 
-FLARE uses Pydantic models for configuration management. The main configuration classes are:
+FLARE uses Pydantic models for configuration management. 
+The suggested usage is via YAML files: you can write your configuration (for FDN, attenuation, mixing, etc.) in a YAML file, then load it in Python and passing it to the Pydantic config classes. The config classes (FDNConfig, GFDNConfig) are designed to accept dictionaries, so you can parse your YAML into a dict and instantiate the config objects:
+```python
+import yaml
+from flareverb.config.config import BaseConfig
+
+with open("my_config.yaml", "r") as f:
+    config_dict = yaml.safe_load(f)
+
+config = BaseConfig(**config_dict)
+
+```
+The main configuration classes are:
 
 ### FDNConfig
 Core FDN configuration parameters:
@@ -60,6 +72,8 @@ Grouped FDN configuration (inherits from FDNConfig):
 - `n_groups`: Number of groups (default: 2)
 - `coupling_angles`: Inter-group coupling angles (default: [0.0])
 - `mixing_angles`: Intra-group mixing angles (default: [0.0, 0.0])
+
+The main orchestration function is [fdn_dataset](https://github.com/gdalsanto/flare/blob/103ed82c0546e7da7001c7029bfd067ad944d2cd/src/flareverb/generate.py#L385).  
 
 ## Requirements
 
