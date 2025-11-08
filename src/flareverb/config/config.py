@@ -343,6 +343,10 @@ class BaseConfig(BaseModel):
         default="cuda",
         description="Device to use."
     )
+    dtype: str = Field(
+        default="float32",
+        description="Data type."
+    )
     is_delay_shift: bool = Field(
         default=False,
         description="Whether to apply random delay shift."
@@ -384,4 +388,13 @@ class BaseConfig(BaseModel):
         # Sync device with optimization config
         self.fdn_optim_config.device = self.device
 
+        # convert dtype string to torch dtype
+        dtype_mapping = {
+            "float32": torch.float32,
+            "float64": torch.float64,
+        }
+        if self.dtype in dtype_mapping:
+            self.dtype = dtype_mapping[self.dtype]
+        else:
+            raise ValueError(f"Unsupported dtype '{self.dtype}'. Supported dtypes are: {list(dtype_mapping.keys())}")
         return self

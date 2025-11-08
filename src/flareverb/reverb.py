@@ -126,6 +126,7 @@ class BaseFDN(nn.Module):
         alias_decay_db: float,
         delay_lengths: List[int],
         device: Literal["cpu", "cuda"] = "cuda",
+        dtype: torch.dtype = torch.float32,
         requires_grad: bool = True,
         output_layer: Literal["freq_complex", "freq_mag", "time"] = "time",
     ) -> None:
@@ -148,6 +149,8 @@ class BaseFDN(nn.Module):
             numbers to avoid periodic artifacts.
         device : Literal["cpu", "cuda"], optional
             Device to run computations on. Default is 'cuda'.
+        dtype : torch.dtype, optional
+            Data type for tensors. Default is torch.float32.
         requires_grad : bool, optional
             Whether parameters should be learnable for optimization. Default is True.
         output_layer : Literal["freq_complex", "freq_mag", "time"], optional
@@ -168,7 +171,7 @@ class BaseFDN(nn.Module):
 
         self._validate_delays(config, delay_lengths)
         self._initialize_parameters(
-            config, nfft, alias_decay_db, delay_lengths, device, requires_grad
+            config, nfft, alias_decay_db, delay_lengths, device, dtype, requires_grad
         )
         self._setup_fdn_system(config, output_layer)
 
@@ -273,11 +276,12 @@ class BaseFDN(nn.Module):
         alias_decay_db: float,
         delay_lengths: List[int],
         device: str,
+        dtype: torch.dtype,
         requires_grad: bool,
     ) -> None:
         """Initialize FDN parameters."""
         self.device = torch.device(device)
-
+        self.dtype = dtype
         # Core FDN parameters
         self.N = config.N
         self.fs = config.fs
@@ -310,7 +314,7 @@ class BaseFDN(nn.Module):
         fdn_core = system.Parallel(brA=branch_a, brB=branch_b, sum_output=True)
 
         # Setup I/O layers
-        input_layer = dsp.FFT(self.nfft)
+        input_layer = dsp.FFT(self.nfft, dtype=self.dtype)
         output_layer = self._create_output_layer(output_layer)
 
         # Create shell
@@ -323,11 +327,11 @@ class BaseFDN(nn.Module):
     def _create_output_layer(self, output_type: str):
         """Create the appropriate output layer based on type."""
         if output_type == "time":
-            return dsp.iFFTAntiAlias(self.nfft, self.alias_decay_db)
+            return dsp.iFFTAntiAlias(self.nfft, self.alias_decay_db, dtype=self.dtype)
         elif output_type == "freq_complex":
-            return dsp.Transform(transform=lambda x: x)
+            return dsp.Transform(transform=lambda x: x, dtype=self.dtype)
         elif output_type == "freq_mag":
-            return dsp.Transform(transform=lambda x: torch.abs(x))
+            return dsp.Transform(transform=lambda x: torch.abs(x), dtype=self.dtype)
         else:
             raise ValueError(f"Unsupported output layer type: {output_type}")
 
@@ -342,6 +346,7 @@ class BaseFDN(nn.Module):
             requires_grad=self.requires_grad,
             alias_decay_db=self.alias_decay_db,
             device=self.device,
+            dtype=self.dtype,
         )
 
         output_gain = dsp.Gain(
@@ -350,6 +355,7 @@ class BaseFDN(nn.Module):
             requires_grad=self.requires_grad,
             alias_decay_db=self.alias_decay_db,
             device=self.device,
+            dtype=self.dtype,
         )
 
         # Feedback loop components
@@ -386,6 +392,7 @@ class BaseFDN(nn.Module):
             requires_grad=False,
             alias_decay_db=self.alias_decay_db,
             device=self.device,
+            dtype=self.dtype,
         )
         delays.assign_value(delays.sample2s(self.delay_lengths))
         return delays
@@ -414,6 +421,7 @@ class BaseFDN(nn.Module):
                     requires_grad=self.requires_grad,
                     alias_decay_db=self.alias_decay_db,
                     device=self.device,
+                    dtype=self.dtype,
                 )
             else:
                 mixing = dsp.VelvetNoiseMatrix(
@@ -425,6 +433,7 @@ class BaseFDN(nn.Module):
                     m_R=m_R,
                     alias_decay_db=self.alias_decay_db,
                     device=self.device,
+                    dtype=self.dtype,
                 )
         elif config.mixing_type == "householder":
             mixing = dsp.HouseholderMatrix(
@@ -433,6 +442,7 @@ class BaseFDN(nn.Module):
                 requires_grad=self.requires_grad,
                 alias_decay_db=self.alias_decay_db,
                 device=self.device,
+                dtype=self.dtype,
             )
         else:
             try:
@@ -443,6 +453,7 @@ class BaseFDN(nn.Module):
                     requires_grad=self.requires_grad,
                     alias_decay_db=self.alias_decay_db,
                     device=self.device,
+                    dtype=self.dtype,
                 )  # TODO add hadamard, tiny rotation
             except:
                 raise ValueError(f"Unsupported mixing type: {config.mixing_type}")
@@ -458,6 +469,7 @@ class BaseFDN(nn.Module):
             requires_grad=False,
             alias_decay_db=self.alias_decay_db,
             device=self.device,
+            dtype=self.dtype,
         )
 
         if config.early_reflections_type == "FIR":
@@ -469,6 +481,7 @@ class BaseFDN(nn.Module):
                 map=lambda x: x,
                 alias_decay_db=self.alias_decay_db,
                 device=self.device,
+                dtype=self.dtype,
             )
         else:
             early_reflections = dsp.Gain(
@@ -478,6 +491,7 @@ class BaseFDN(nn.Module):
                 map=lambda x: x,
                 alias_decay_db=self.alias_decay_db,
                 device=self.device,
+                dtype=self.dtype,
             )
 
         self._configure_onset(onset_delay, early_reflections)
@@ -538,6 +552,7 @@ class BaseFDN(nn.Module):
             requires_grad=False,
             alias_decay_db=self.alias_decay_db,
             device=self.device,
+            dtype=self.dtype,
         )
         attenuation.map = MapGamma(self.delay_lengths)
 
@@ -577,6 +592,7 @@ class BaseFDN(nn.Module):
             start_freq=config.t60_center_freq[0],
             end_freq=config.t60_center_freq[-1],
             device=None,
+            dtype=self.dtype,
         )
         attenuation.assign_value(
             torch.tensor(config.attenuation_param[0], device=self.device)
@@ -593,6 +609,7 @@ class BaseFDN(nn.Module):
             delays=self.delay_lengths,
             alias_decay_db=self.alias_decay_db,
             device=self.device,
+            dtype=self.dtype,
         )
         attenuation.assign_value(
             torch.tensor(config.attenuation_param[0], device=self.device)
@@ -648,6 +665,7 @@ class GroupedFDN(BaseFDN):
         alias_decay_db: float,
         delay_lengths: List[int],
         device: Literal["cpu", "cuda"] = "cuda",
+        dtype: torch.dtype = torch.float32,
         requires_grad: bool = True,
         output_layer: Literal["freq_complex", "freq_mag", "time"] = "time",
     ) -> None:
@@ -663,6 +681,7 @@ class GroupedFDN(BaseFDN):
             alias_decay_db=alias_decay_db,
             delay_lengths=delay_lengths,
             device=device,
+            dtype=dtype,
             requires_grad=requires_grad,
             output_layer=output_layer,
         )
@@ -684,6 +703,7 @@ class GroupedFDN(BaseFDN):
             requires_grad=False,
             alias_decay_db=self.alias_decay_db,
             device=self.device,
+            dtype=self.dtype,
         )
         delays.assign_value(delays.sample2s(self.delay_lengths))
         return delays
@@ -749,6 +769,7 @@ class GroupedFDN(BaseFDN):
             requires_grad=False,
             alias_decay_db=self.alias_decay_db,
             device=self.device,
+            dtype=self.dtype,
         )  # TODO implement a learnable mixing matrix, with learnable angles
 
         mixing_matrix.assign_value(M)
@@ -766,6 +787,7 @@ class GroupedFDN(BaseFDN):
             requires_grad=self.requires_grad,
             alias_decay_db=self.alias_decay_db,
             device=self.device,
+            dtype=self.dtype,
         )
 
         output_gain = dsp.Gain(
@@ -775,6 +797,7 @@ class GroupedFDN(BaseFDN):
             requires_grad=self.requires_grad,
             alias_decay_db=self.alias_decay_db,
             device=self.device,
+            dtype=self.dtype
         )
 
         # Feedback loop components
@@ -808,6 +831,7 @@ class GroupedFDN(BaseFDN):
             requires_grad=False,
             alias_decay_db=self.alias_decay_db,
             device=self.device,
+            dtype=self.dtype
         )
         attenuation.map = MapGamma(self.delay_lengths)
 
@@ -850,6 +874,7 @@ class GroupedFDN(BaseFDN):
             start_freq=config.t60_center_freq[0],
             end_freq=config.t60_center_freq[-1],
             device=None,
+            dtype=self.dtype
         )
         params = torch.tensor(config.attenuation_param, device=self.device).T.flatten()
         attenuation.assign_value(params)
@@ -866,6 +891,7 @@ class GroupedFDN(BaseFDN):
             delays=self.delay_lengths,
             alias_decay_db=self.alias_decay_db,
             device=self.device,
+            dtype=self.dtype
         )
         attenuation.assign_value(config.attenuation_param)
         return attenuation

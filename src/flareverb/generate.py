@@ -177,6 +177,7 @@ def create_fdn(fdn_config: Union[FDNConfig, GFDNConfig], delay_lengths: list, in
             alias_decay_db=fdn_config.alias_decay_db,
             delay_lengths=delay_lengths,
             device=config.device,
+            dtype=config.dtype,
             requires_grad=config.optimize,
             output_layer="freq_mag" if config.optimize else "time",
         )
@@ -190,6 +191,7 @@ def create_fdn(fdn_config: Union[FDNConfig, GFDNConfig], delay_lengths: list, in
             alias_decay_db=fdn_config.alias_decay_db,
             delay_lengths=delay_lengths,
             device=config.device,
+            dtype=config.dtype,
             requires_grad=config.optimize,
             output_layer="freq_mag" if config.optimize else "time",
         )
@@ -303,6 +305,7 @@ def optimize_fdn(curr_fdn: Union[FDNConfig, GFDNConfig], config: BaseConfig) -> 
         target_shape=(1, config.nfft // 2 + 1, 1),
         expand=config.fdn_optim_config.dataset_length,
         device=config.device,
+        dtype=config.dtype,
     )
     train_loader, valid_loader = load_dataset(
         dataset, batch_size=config.fdn_optim_config.batch_size
