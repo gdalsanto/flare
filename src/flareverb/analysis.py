@@ -471,16 +471,65 @@ def normalized_echo_density(
     window_func = window_func / np.sum(window_func)
     
     # Slide window across RIR and compute normalized echo density
-    for cursor in range(len(rir)):
+    for cursor in range(rir.shape[1]):
         frame = padded_rir[:, cursor:cursor + window_length_samps, :]
         std = weighted_std(frame, window_func, use_local_avg)
         # Count samples above weighted std, weighted by window
-        count = np.sum((np.abs(frame) > std) * window_func)
+        count = np.sum((np.abs(frame) > std).squeeze() * window_func)
         # Normalize by ERFC constant
         output[cursor] = (1 / ERFC) * count
     
     ned = output[:-window_length_samps]
     return ned
+
+def compute_mixing_time(ned, fs, mixing_thresh=0.9, pre_delay=0):
+    """Estimate the mixing time from a normalized echo density (NED) profile.
+
+    The mixing time is defined here as the first time (in milliseconds) when
+    the normalized echo density exceeds the provided `mixing_thresh` value.
+
+    Parameters
+    ----------
+    ned : ndarray
+        Normalized Echo Density (NED) profile. Expected to be a 1-D array c
+        computed with normalized_echo_density
+    fs : float
+        Sampling rate in Hz used to convert sample indices to time.
+    mixing_thresh : float, optional
+        Threshold in the NED above which the signal is considered "mixed".
+        Default is 0.9.
+    pre_delay : int, optional
+        Number of samples to subtract from the detected index to account for
+        any pre-delay; used when converting to time. Default is 0.
+
+    Returns
+    -------
+    float
+        Estimated mixing time in milliseconds. The value is computed as
+        (index - pre_delay) / fs * 1000.
+
+    Notes
+    -----
+    - The implementation uses ``np.argmax(ned > mixing_thresh)`` which
+      returns the index of the first True value. If no element exceeds the
+      threshold, ``np.argmax`` returns 0. The caller should ensure ``ned``
+      covers a sufficient range such that this behaviour is acceptable. The
+      function does not currently raise on a missing crossing.
+    - ``pre_delay`` is expected in samples (not seconds).
+    - Reference: Abel, Jonathan S., and Patty Huang. "A simple, robust measure 
+    of reverberation echo density." Audio Engineering Society Convention 121. 
+    Audio Engineering Society, 2006.
+    """
+
+    # determine mixing time
+    d = np.argmax(ned >= mixing_thresh)
+    t_mix = (d - pre_delay) / fs * 1000
+
+    if t_mix is None:
+        t_mix = 0
+        print('Mixing time not found within given limits.')
+
+    return t_mix
 
 def compute_clarity_parameters(rir: Union[Tensor, NDArray], fs: float) -> tuple:
     """
@@ -664,8 +713,8 @@ class AcousticAnalyzer:
         results['edr'] = compute_edr(rir_tensor)
         
         # Compute normalized echo density
-        results['ned'] = normalized_echo_density(rir_tensor, self.fs)
-        
+        results['ned'] = normalized_echo_density(rir_tensor, self.fs, use_local_avg=False)
+        results['mixing_time'] = compute_mixing_time(results['ned'], self.fs)
         ## compute clarity index at 50ms and 80ms
         results['c50'], results['c80'] = compute_clarity_parameters(rir_tensor, self.fs)
         ## compute definition 
