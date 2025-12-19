@@ -292,7 +292,11 @@ def filterbank(x: Union[np.ndarray, torch.Tensor],
         x_np = x.cpu().numpy()
     else:
         x_np = x
-
+    if x_np.ndim == 3:
+        # If input is 3D, reshape to (n_samples, n_channels) for consistency
+        assert (x_np.shape[-1] == 1) & (x_np.shape[0] == 1), "Only single batch and channel is supported "
+        x_np = x_np.squeeze(-1)
+        
     if x_np.ndim == 1:
         # If input is 1D, reshape to (1, n_samples) for consistency
         x_np = x_np[np.newaxis, :]
@@ -341,7 +345,7 @@ def filterbank(x: Union[np.ndarray, torch.Tensor],
         filtered = [
             scipy.signal.sosfilt(sos, x_np, axis=1) for sos in sos_filters
         ]
-        y = np.stack(filtered, axis=0)
+        y = np.vstack(filtered)
 
     elif filter_type == 'pyfar':
         # Get frequency responses for each band
