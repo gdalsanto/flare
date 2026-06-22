@@ -1,6 +1,7 @@
 from typing import Union
 
 import torch
+import sympy as sp
 import pyfar as pf
 import pandas as pd
 import scipy

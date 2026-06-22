@@ -14,6 +14,8 @@ from flareverb.config.config import (
 from flareverb.utils import ms_to_samps
 from flareverb.reverb import BaseFDN
 from flareverb.utils import rt_from_sabine
+
+
 def load_material_coefficients(filename: str = "pyra_materials.json"):
     """Load material absorption coefficients from JSON file."""
     materials_file = Path(__file__).parent / "data" / filename
