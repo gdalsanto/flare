@@ -1,11 +1,8 @@
-# Standard library imports
 from pathlib import Path
 import warnings
 
-# Third-party imports
 from typing import Union, Optional, List
 import numpy as np
-import sympy as sps
 import torch
 from pydantic import BaseModel, model_validator, Field
 
