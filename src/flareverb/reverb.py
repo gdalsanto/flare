@@ -455,7 +455,7 @@ class BaseFDN(nn.Module):
                     device=self.device,
                     dtype=self.dtype,
                 )  # TODO add hadamard, tiny rotation
-            except:
+            except ValueError:
                 raise ValueError(f"Unsupported mixing type: {config.mixing_type}")
         return mixing
 
@@ -556,7 +556,7 @@ class BaseFDN(nn.Module):
         )
         attenuation.map = MapGamma(self.delay_lengths)
 
-        if config.attenuation_param == None:
+        if config.attenuation_param is None:
             # Random attenuation within range
             random_rt = (
                 torch.rand((1,), device=self.device)
@@ -835,7 +835,7 @@ class GroupedFDN(BaseFDN):
         )
         attenuation.map = MapGamma(self.delay_lengths)
 
-        if config.attenuation_param == None:
+        if config.attenuation_param is None:
             # Random attenuation within range
             random_rt = (
                 torch.rand((1,), device=self.device)

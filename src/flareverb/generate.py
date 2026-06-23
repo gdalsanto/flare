@@ -6,7 +6,6 @@ from typing import Union, Dict, Tuple, Optional, Any
 import numpy as np
 import pandas as pd
 import sympy as sp
-from numpy import ndarray as NDArray
 
 from flamo.optimize.dataset import DatasetColorless, load_dataset
 from flamo.optimize.loss import mse_loss, sparsity_loss
@@ -22,7 +21,6 @@ from flareverb.config.config import (
     BaseConfig)
 
 Tensor = torch.Tensor
-NDArray = np.ndarray
 
 logger = logging.getLogger(__name__)
 
