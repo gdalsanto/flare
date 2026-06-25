@@ -106,7 +106,7 @@ def fdn_params(config: Union[FDNConfig, GFDNConfig], device: str):
                     rand_primes = prime_nums[np.random.permutation(len(prime_nums))]
                     # delay line lengths
                     curr_delay_lengths = np.array(
-                        np.r_[rand_primes[:N/n_groups - 1], sp.nextprime(delay_range_samps[1])],
+                        np.r_[rand_primes[:int(N/n_groups - 1)], sp.nextprime(delay_range_samps[1])],
                         dtype=np.int32,
                     ).tolist() 
             else:
@@ -126,13 +126,13 @@ def fdn_params(config: Union[FDNConfig, GFDNConfig], device: str):
     else:
         U_dims = (N, N)
     if config.gain_init == "randn":
-        b = torch.randn(size=(N, 1), device=device)
-        c = torch.randn(size=(1, N), device=device)
+        b = torch.randn(size=(N, config.in_ch), device=device)
+        c = torch.randn(size=(config.out_ch, N), device=device)
         U = torch.randn(size=U_dims, device=device)
     elif config.gain_init == "uniform":
-        b = torch.rand(size=(N, 1), device=device)
-        c = torch.rand(size=(1, N), device=device)
-        U = torch.rand(size=U_dims, device=device)        
+        b = torch.rand(size=(N, config.in_ch), device=device)
+        c = torch.rand(size=(config.out_ch, N), device=device)
+        U = torch.rand(size=U_dims, device=device)      
     else: 
         raise ValueError("Distribution not recognized")
 

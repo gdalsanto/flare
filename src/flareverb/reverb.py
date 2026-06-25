@@ -461,21 +461,33 @@ class BaseFDN(nn.Module):
 
     def _create_direct_path(self, config: BaseConfig):
         """Create the direct path branch (branch B)."""
-        onset_delay = dsp.parallelDelay(
-            size=(self.in_ch,),
-            max_len=self.onset,
-            nfft=self.nfft,
-            isint=True,
-            requires_grad=False,
-            alias_decay_db=self.alias_decay_db,
-            device=self.device,
-            dtype=self.dtype,
-        )
+        if self.in_ch != self.out_ch:
+            onset_delay = dsp.Delay(
+                size=(self.out_ch, self.in_ch),
+                max_len=self.onset,
+                nfft=self.nfft,
+                isint=True,
+                requires_grad=False,
+                alias_decay_db=self.alias_decay_db,
+                device=self.device,
+                dtype=self.dtype,
+            )
+        else:
+            onset_delay = dsp.parallelDelay(
+                size=(self.out_ch,),
+                max_len=self.onset,
+                nfft=self.nfft,
+                isint=True,
+                requires_grad=False,
+                alias_decay_db=self.alias_decay_db,
+                device=self.device,
+                dtype=self.dtype,
+            )
 
         if config.early_reflections_type == "FIR":
             L = self.delay_lengths.min()
             early_reflections = dsp.parallelFilter(
-                size=(L-self.onset, self.in_ch),
+                size=(L-self.onset, self.out_ch),
                 nfft=self.nfft,
                 requires_grad=False,
                 map=lambda x: x,
@@ -484,8 +496,8 @@ class BaseFDN(nn.Module):
                 dtype=self.dtype,
             )
         else:
-            early_reflections = dsp.Gain(
-                size=(self.in_ch, self.out_ch),
+            early_reflections = dsp.parallelGain(
+                size=(self.out_ch, ),
                 nfft=self.nfft,
                 requires_grad=False,
                 map=lambda x: x,
@@ -508,23 +520,21 @@ class BaseFDN(nn.Module):
     def _configure_onset(self, onset_delay, early_reflections):
         """Configure onset behavior based on early_reflections_type."""
         # Ensure onset has correct number of values
-        if len(self.onset) != self.in_ch:
-            self.onset = self.onset.repeat(self.in_ch)
         if self.early_reflections_type is None:
             onset_delay.assign_value(
-                onset_delay.sample2s(torch.zeros((self.in_ch,), device=self.device))
+                onset_delay.sample2s(torch.zeros((self.in_ch, self.out_ch), device=self.device))
             )
-            early_reflections.assign_value(torch.zeros((self.in_ch, 1)))
+            early_reflections.assign_value(torch.zeros((self.out_ch, 1)))
             
         elif self.early_reflections_type == "gain":
-            onset_delay.assign_value(onset_delay.sample2s(torch.tensor(self.onset)))
-            early_reflections.assign_value(torch.randn((self.in_ch, 1)))
+            onset_delay.assign_value(onset_delay.sample2s(torch.tensor(self.onset).repeat(self.out_ch, self.in_ch)))
+            early_reflections.assign_value(torch.randn((self.out_ch, )))
 
         elif self.early_reflections_type == "FIR":
             velvet_noise = signal_gallery(
                 batch_size=1,
                 n_samples=early_reflections.size[0],
-                n=self.in_ch,
+                n=self.out_ch,
                 signal_type="velvet",
                 fs=self.fs,
                 rate=max(int(torch.rand(1,) / 100 * self.fs), self.fs / early_reflections.size[0] + 1),
